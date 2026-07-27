@@ -267,6 +267,14 @@ def drop_worker():
                     moving.pop(cid)
                     evaluate_drop(wconn, fc, leaf, ws.rect)
         for cid in [c for c in prev if c not in seen]:
+            # A window that vanished into the scratchpad was iconified by
+            # SOME path (our tick, the titlebar button, a user bind). Save
+            # its last visible rect so any restore puts it back in place.
+            con = tree.find_by_id(cid)
+            if (con is not None and cid not in saved and con.workspace() is not None
+                    and con.workspace().name.startswith("__")):
+                saved[cid] = prev[cid]
+                min_stack.append(cid)
             prev.pop(cid)
             moving.pop(cid, None)
 
