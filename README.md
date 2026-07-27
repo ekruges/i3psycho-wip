@@ -2,7 +2,7 @@
 
 # i3psycho (wip)
 
-i3 for psychopaths: floating-first i3, macOS-grade window behavior, the blue titlebar kept sacred. Nothing works yet.
+i3 for psychopaths: floating-first i3, macOS-grade window behavior, the blue titlebar kept sacred.
 
 The plan is canonical and lives in [i3psycho-plan](https://github.com/ekruges/i3psycho-plan).
 
