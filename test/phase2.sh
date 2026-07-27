@@ -9,10 +9,11 @@ ln -sf "$PWD/psychod/psychod.py" /usr/local/bin/psychod
 ln -sf "$PWD/psychod/psychod-status" /usr/local/bin/psychod-status
 chmod +x psychod/psychod.py psychod/psychod-status
 
+pkill -f "bin/psychod" 2>/dev/null || true
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
 XVFB=$!
-cleanup() { i3-msg exit >/dev/null 2>&1 || true; kill "$XVFB" 2>/dev/null || true; pkill -f psychod.py 2>/dev/null || true; }
+cleanup() { i3-msg exit >/dev/null 2>&1 || true; kill "$XVFB" 2>/dev/null || true; pkill -f "bin/psychod" 2>/dev/null || true; }
 trap cleanup EXIT
 sleep 1
 

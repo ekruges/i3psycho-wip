@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ezra Kruger <ekruges@users.noreply.github.com>
 Date: Mon, 27 Jul 2026 02:24:27 -0400
-Subject: [PATCH 3/3] floating: edge snap preview and snap-on-drop in the drag
+Subject: [PATCH 3/7] floating: edge snap preview and snap-on-drop in the drag
  loop
 
 While dragging a floating window, reaching a workarea edge shows a

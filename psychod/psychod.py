@@ -13,6 +13,7 @@ import argparse
 import collections
 import math
 import subprocess
+import sys
 import threading
 import time
 
@@ -34,7 +35,7 @@ if ARGS.hot_corners != "none":
         if _k.strip() in ("tl", "tr", "bl", "br") and _v.strip():
             HOT_CORNERS[_k.strip()] = _v.strip()
 
-conn = Connection()
+conn = Connection(auto_reconnect=True)
 mru = collections.deque(maxlen=64)          # focus history, most recent last
 saved = {}                                  # con_id -> (x, y, w, h) container rect
 min_stack = []                              # LIFO of minimized con_ids
@@ -216,6 +217,13 @@ def do_showdesktop():
 def dispatch(payload):
     if not payload.startswith("psycho:"):
         return
+    try:
+        _dispatch(payload)
+    except Exception as exc:
+        print(f"psychod: {payload} failed: {exc}", file=sys.stderr)
+
+
+def _dispatch(payload):
     parts = payload.split(":")
     action = parts[1]
     if action == "snap" and len(parts) > 2:
@@ -315,17 +323,27 @@ def drop_worker():
     ponytail: polling, because stock i3 emits no window::move events for
     floating repositions (verified empirically). The Phase 2 fork adds real
     drag events and a live preview; until then a 0.3s poll is invisible."""
-    wconn = Connection()
+    wconn = Connection(auto_reconnect=True)
     prev = {}      # leaf id -> outer rect tuple
     moving = {}    # leaf id -> last time the rect changed
+    hidden = set()  # leaf ids currently in the scratchpad
     hot = {"corner": None, "since": 0.0, "armed": True}
     interval = 0.6
+    failures = 0
     while True:
         time.sleep(interval)
         try:
             tree = wconn.get_tree()
+            failures = 0
         except Exception:
-            continue                      # i3 restarting
+            failures += 1
+            if failures >= 4:             # i3 restarted: re-resolve the socket
+                try:
+                    wconn = Connection(auto_reconnect=True)
+                except Exception:
+                    pass
+                failures = 0
+            continue
         now = time.monotonic()
         if HOT_CORNERS:
             poll_hot_corner(wconn, hot, tree.rect, now)
@@ -355,16 +373,25 @@ def drop_worker():
                     moving.pop(cid)
                     evaluate_drop(wconn, fc, leaf, ws.rect)
         for cid in [c for c in prev if c not in seen]:
-            # A window that vanished into the scratchpad was iconified by
-            # SOME path (our tick, the titlebar button, a user bind). Save
-            # its last visible rect so any restore puts it back in place.
+            # iconified by any path: save the last visible rect
             con = tree.find_by_id(cid)
-            if (con is not None and cid not in saved and con.workspace() is not None
+            if (con is not None and con.workspace() is not None
                     and con.workspace().name.startswith("__")):
-                saved[cid] = prev[cid]
-                min_stack.append(cid)
+                hidden.add(cid)
+                if cid not in saved:
+                    saved[cid] = prev[cid]
+                    min_stack.append(cid)
             prev.pop(cid)
             moving.pop(cid, None)
+        # restored by any path: put it back at the saved rect
+        for cid in [c for c in hidden if c in seen]:
+            hidden.discard(cid)
+            if cid in saved:
+                con = tree.find_by_id(cid)
+                if con is not None:
+                    place(wconn, con, *saved.pop(cid))
+                if cid in min_stack:
+                    min_stack.remove(cid)
 
 
 def poll_hot_corner(wconn, st, root_rect, now):
@@ -418,16 +445,37 @@ def evaluate_drop(wconn, fc, leaf, wa):
         place(wconn, leaf, *region_rect(wa, region))
 
 
+def register_handlers(c):
+    c.on(Event.WINDOW_NEW, on_new)
+    c.on(Event.WINDOW_FLOATING, on_floating)
+    c.on(Event.WINDOW_FOCUS, on_focus)
+    c.on(Event.WINDOW_CLOSE, on_close)
+    c.on(Event.WINDOW_MOVE, on_move)
+    c.on(Event.BINDING, on_binding)
+    c.on(Event.TICK, on_tick)
+
+
 def main():
+    global conn
     threading.Thread(target=drop_worker, daemon=True).start()
-    conn.on(Event.WINDOW_NEW, on_new)
-    conn.on(Event.WINDOW_FLOATING, on_floating)
-    conn.on(Event.WINDOW_FOCUS, on_focus)
-    conn.on(Event.WINDOW_CLOSE, on_close)
-    conn.on(Event.WINDOW_MOVE, on_move)
-    conn.on(Event.BINDING, on_binding)
-    conn.on(Event.TICK, on_tick)
-    conn.main()
+    register_handlers(conn)
+    while True:
+        try:
+            conn.main()
+        except Exception as exc:
+            print(f"psychod: event loop interrupted: {exc}", file=sys.stderr)
+        # i3 went away (restart, crash, replace). Rebuild the connection from
+        # scratch so the socket path is re-resolved from the X root window;
+        # retrying a dead Connection can spin on a stale path forever.
+        while True:
+            time.sleep(0.5)
+            try:
+                conn = Connection(auto_reconnect=True)
+                register_handlers(conn)
+                print("psychod: reconnected to i3", file=sys.stderr)
+                break
+            except Exception:
+                continue
 
 
 if __name__ == "__main__":

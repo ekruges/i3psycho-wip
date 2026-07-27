@@ -8,6 +8,7 @@ ln -sf "$PWD/psychod/psychod.py" /usr/local/bin/psychod
 ln -sf "$PWD/psychod/psychod-status" /usr/local/bin/psychod-status
 chmod +x psychod/psychod.py psychod/psychod-status
 
+pkill -f "bin/psychod" 2>/dev/null || true
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
 XVFB=$!
@@ -16,7 +17,7 @@ cleanup() {
   i3-msg exit >/dev/null 2>&1 || true
   kill "$XVFB" 2>/dev/null || true
   pkill -f "Xvfb :98" 2>/dev/null || true
-  pkill -f psychod.py 2>/dev/null || true
+  pkill -f "bin/psychod" 2>/dev/null || true
 }
 trap cleanup EXIT
 sleep 1
@@ -94,10 +95,10 @@ echo "after drop: $GOT (want 0 0 640 777 exact)"
 [ "$GOT" = "0 0 640 777" ]
 
 echo "--- 4. hot corner br = show desktop"
-xdotool mousemove 1279 799; sleep 1.3
+xdotool mousemove 1279 799; sleep 3.0
 V=$(visible); echo "after corner dwell: $V visible (want 0)"; [ "$V" -eq 0 ]
 xdotool mousemove 640 400; sleep 0.5
-xdotool mousemove 1279 799; sleep 1.3
+xdotool mousemove 1279 799; sleep 3.0
 V=$(visible); echo "after second dwell: $V visible (want 3)"; [ "$V" -eq 3 ]
 xdotool mousemove 640 400
 

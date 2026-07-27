@@ -19,7 +19,7 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("--status-cmd", default="i3status")
 args = ap.parse_args()
 
-conn = Connection()
+conn = Connection(auto_reconnect=True)
 
 
 def scratch_titles():

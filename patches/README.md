@@ -13,6 +13,13 @@ same series as commits). Regenerate with `git format-patch` after a rebase.
   the focused titlebar color, stacked under the dragged window) and exact
   snap-on-drop for halves / maximize / quarters. Zero per-motion work when
   the edge region is unchanged.
+- `0004` — scratchpad: app iconify requests honored; hidden windows carry
+  _NET_WM_STATE_HIDDEN and WM_STATE Iconic.
+- `0005` — ipc/i3bar: GET_SCRATCHPAD (type 13) and native taskbar chips
+  next to the workspace buttons (app icons, urgency blink, click restores).
+- `0006` — scratchpad: the retro outline-box genie on minimize/restore.
+- `0007` — config: the psycho_* directives (genie duration, buttons,
+  double-click, snap edges/margin, chips).
 
 Build:
 

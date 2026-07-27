@@ -9,10 +9,11 @@ ln -sf "$PWD/psychod/psychod.py" /usr/local/bin/psychod
 ln -sf "$PWD/psychod/psychod-status" /usr/local/bin/psychod-status
 chmod +x psychod/psychod.py psychod/psychod-status
 
+pkill -f "bin/psychod" 2>/dev/null || true
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
 XVFB=$!
-cleanup() { i3-msg exit >/dev/null 2>&1 || true; kill "$XVFB" 2>/dev/null || true; pkill -f psychod.py 2>/dev/null || true; }
+cleanup() { i3-msg exit >/dev/null 2>&1 || true; kill "$XVFB" 2>/dev/null || true; pkill -f "bin/psychod" 2>/dev/null || true; }
 trap cleanup EXIT
 sleep 1
 
@@ -97,16 +98,25 @@ GOT=$(rect alpha)
 echo "got: $GOT  want: $WANT (size-hint rounding tolerated)"
 close_to "$GOT" "$WANT" 16
 
-echo "--- 7. statusline dock shows minimized window"
+echo "--- 7. native bar chips: list, render, click to restore"
 i3-msg '[title="gamma"] focus' >/dev/null; sleep 0.3
+BEFORE_CHIP=$(rect gamma)
 tick psycho:min
-sleep 0.5
-LINE=$(timeout 5 psychod-status --status-cmd "i3status -c dist/i3status.conf" | grep -m1 psycho_min || true)
-echo "${LINE:0:120}"
-echo "$LINE" | grep -q '"psycho_min"'
-echo "$LINE" | grep -q 'gamma'
-sleep 1.5
+sleep 1.0
+SOCK=$(i3 --get-socketpath) python3 - <<'PYEOF2'
+import socket, struct, os, json, sys
+s = socket.socket(socket.AF_UNIX); s.connect(os.environ["SOCK"])
+s.sendall(b"i3-ipc" + struct.pack("<II", 0, 13))
+hdr = s.recv(14); ln, rt = struct.unpack("<II", hdr[6:])
+items = json.loads(s.recv(ln))
+assert any(i["name"] == "gamma" for i in items), items
+print("GET_SCRATCHPAD lists gamma:", items)
+PYEOF2
 scrot /tmp/i3psycho-p1-dock.png
-tick psycho:restore
+xdotool mousemove 45 789 click 1
+sleep 1.2
+AFTER_CHIP=$(rect gamma)
+echo "chip click restore: $BEFORE_CHIP -> $AFTER_CHIP"
+[ "$BEFORE_CHIP" = "$AFTER_CHIP" ]
 
 echo PASS

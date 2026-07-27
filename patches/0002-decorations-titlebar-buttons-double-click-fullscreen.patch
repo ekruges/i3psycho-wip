@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ezra Kruger <ekruges@users.noreply.github.com>
 Date: Mon, 27 Jul 2026 01:32:23 -0400
-Subject: [PATCH 2/3] decorations: titlebar buttons + double-click fullscreen
+Subject: [PATCH 2/7] decorations: titlebar buttons + double-click fullscreen
  for floating windows
 
 New deco_buttons module draws close / iconify / maximize glyphs on the

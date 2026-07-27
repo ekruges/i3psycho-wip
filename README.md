@@ -6,7 +6,38 @@ i3 for psychopaths: floating-first i3, macOS-grade window behavior, the blue tit
 
 The plan is canonical and lives in [i3psycho-plan](https://github.com/ekruges/i3psycho-plan).
 
-## Status: Phase 3 shipped (the QoL layer)
+## Install
+
+Arch: `cd packaging && ./mkpkgfiles.sh && makepkg -si` (provides/conflicts
+`i3-wm`, like i3-gaps did). Other distros: `./packaging/build-i3psycho.sh`,
+then install psychod/psychod{.py,-status}. Existing i3 users add ONE line
+to their config: `include /usr/share/i3psycho/psycho.conf`. Full docs:
+**[docs/USERGUIDE.md](docs/USERGUIDE.md)** - install, every keybind, every
+action, every deviation from stock i3, troubleshooting.
+
+## Why this is not a toy
+
+- **Upstream i3's complete test suite passes** against the patched binary:
+  284 files, 4190 tests. The fork is 4 rebasable patches on i3 master, the
+  i3-gaps model, and vanilla i3 configs run unmodified.
+- **In-app minimize buttons actually work** (stock i3 rejects iconify
+  requests). Minimized windows carry proper EWMH/ICCCM state, restore in
+  place, and show as clickable chips in the bar.
+- **psychod cannot take the session down**: pure IPC client, action-level
+  fault isolation, automatic reconnect across i3 restarts, one instance
+  per display.
+- Measured action latency 1.9 ms mean on a 2-core container; release
+  builds by default; zero per-frame work at drag edges.
+
+## The look
+
+Cascade, buttons, expose grid, drag-snap preview - all in stock i3 visual
+language, which is frozen on purpose:
+
+<img src="shots/i3psycho-p1-cascade.png" width="420"> <img src="shots/i3psycho-p2-buttons.png" width="420">
+<img src="shots/i3psycho-p3-expose.png" width="420"> <img src="shots/i3psycho-p3-preview.png" width="420">
+
+## Status
 
 `psychod` (Python, i3ipc, apt-installable deps only) now does the macOS part:
 cascade placement of new windows, exact-workarea snapping (keyboard binds and
