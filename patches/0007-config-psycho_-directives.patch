@@ -9,16 +9,17 @@ psycho_snap_margin <px>, psycho_chips. All optional; defaults match
 the shipped behavior (140ms genie, everything on, 10px margin).
 Colors intentionally reuse client.* and the bar workspace classes.
 ---
- include/config_directives.h |  6 ++++++
- include/configuration.h     | 10 +++++++++
- parser-specs/config.spec    | 36 +++++++++++++++++++++++++++++++
- src/click.c                 |  3 ++-
- src/config.c                |  6 ++++++
- src/config_directives.c     | 24 +++++++++++++++++++++
- src/deco_buttons.c          |  3 +++
- src/floating.c              | 12 ++++++-----
- src/ipc.c                   | 42 +++++++++++++++++++------------------
- 9 files changed, 116 insertions(+), 26 deletions(-)
+ include/config_directives.h     |  6 +++++
+ include/configuration.h         | 10 ++++++++
+ parser-specs/config.spec        | 36 ++++++++++++++++++++++++++++
+ src/click.c                     |  3 ++-
+ src/config.c                    |  6 +++++
+ src/config_directives.c         | 24 +++++++++++++++++++
+ src/deco_buttons.c              |  3 +++
+ src/floating.c                  | 12 ++++++----
+ src/ipc.c                       | 42 +++++++++++++++++----------------
+ testcases/t/201-config-parser.t |  6 +++++
+ 10 files changed, 122 insertions(+), 26 deletions(-)
 
 diff --git a/include/config_directives.h b/include/config_directives.h
 index fd384c0c..30ca2126 100644
@@ -283,6 +284,23 @@ index 9c3218bb..d2b86785 100644
      }
  
      y(array_close);
+diff --git a/testcases/t/201-config-parser.t b/testcases/t/201-config-parser.t
+index 47a7e529..77ba3712 100644
+--- a/testcases/t/201-config-parser.t
++++ b/testcases/t/201-config-parser.t
+@@ -534,6 +534,12 @@ my $expected_all_tokens = "ERROR: CONFIG: Expected one of these tokens: <end>, '
+         assign
+         no_focus
+         focus_follows_mouse
++        psycho_genie_duration
++        psycho_titlebar_buttons
++        psycho_double_click_titlebar
++        psycho_snap_edges
++        psycho_snap_margin
++        psycho_chips
+         mouse_warping
+         focus_wrapping
+         force_focus_wrapping
 -- 
 2.39.5
 
