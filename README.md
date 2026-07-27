@@ -51,7 +51,6 @@ Known behavior:
   cell, so sub-cell gaps are normal - same as every WM, macOS included.
 - On stock i3, drop-snap relies on the 0.3s rect poll (no move events there).
   On the patched i3, moves emit events; the poller works for both.
-- Multi-monitor is untested so far (single-screen Xvfb rig).
 
 Next: true `_NET_WM_STATE_HIDDEN` minimize, PKGBUILD for the AUR, upstream the 0001 patch.
 
