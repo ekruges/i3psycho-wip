@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build i3psycho: upstream i3 + the patches/ series. Result: i3-build/build/i3
-# ponytail: pins nothing yet; pin an upstream tag here once releases start.
+# Pin an upstream tag here once upstream releases past the base commit.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d i3-build ] || git clone --depth 50 https://github.com/i3/i3 i3-build

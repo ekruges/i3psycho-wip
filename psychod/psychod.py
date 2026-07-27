@@ -320,9 +320,9 @@ def on_tick(_, e):
 
 def drop_worker():
     """Poll floating rects; when one settles beyond a workarea edge, snap it.
-    ponytail: polling, because stock i3 emits no window::move events for
-    floating repositions (verified empirically). The Phase 2 fork adds real
-    drag events and a live preview; until then a 0.3s poll is invisible."""
+    Stock i3 emits no window::move events for floating repositions, so we
+    poll; the patched i3 emits them (patch 0001) and the poll doubles as
+    settle detection either way."""
     wconn = Connection(auto_reconnect=True)
     prev = {}      # leaf id -> outer rect tuple
     moving = {}    # leaf id -> last time the rect changed
@@ -395,7 +395,7 @@ def drop_worker():
 
 
 def poll_hot_corner(wconn, st, root_rect, now):
-    # ponytail: xdotool subprocess per poll; swap for python-xlib if it matters
+    # xdotool subprocess per poll; swap for python-xlib if it ever matters
     try:
         out = subprocess.run(["xdotool", "getmouselocation", "--shell"],
                              capture_output=True, text=True, timeout=1).stdout
