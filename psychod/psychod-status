@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""psychod-status — i3bar statusline wrapper: the minimized-window dock.
+
+Wraps a status command (default: i3status) and prepends one clickable block
+per minimized (scratchpad) window. Clicking a block restores that window with
+its remembered geometry via a psycho:restore tick to psychod.
+
+bar { status_command psychod-status }
+"""
+import argparse
+import json
+import subprocess
+import sys
+import threading
+
+from i3ipc import Connection
+
+ap = argparse.ArgumentParser(description=__doc__)
+ap.add_argument("--status-cmd", default="i3status")
+args = ap.parse_args()
+
+conn = Connection()
+
+
+def scratch_titles():
+    tree = conn.get_tree()
+    out = []
+    for fc in tree.scratchpad().floating_nodes:
+        for leaf in fc.leaves():
+            out.append((leaf.id, leaf.name or "window"))
+    return out
+
+
+def clicks():
+    for line in sys.stdin:
+        s = line.strip().lstrip("[").rstrip(",").strip()
+        if not s:
+            continue
+        try:
+            ev = json.loads(s)
+        except ValueError:
+            continue
+        if ev.get("name") == "psycho_min":
+            Connection().send_tick(f"psycho:restore:{ev['instance']}")
+
+
+threading.Thread(target=clicks, daemon=True).start()
+
+print(json.dumps({"version": 1, "click_events": True}), flush=True)
+print("[", flush=True)
+
+child = subprocess.Popen(args.status_cmd, shell=True,
+                         stdout=subprocess.PIPE, text=True)
+first = True
+try:
+    for line in child.stdout:
+        s = line.strip()
+        if (s.startswith("{") and "version" in s) or s == "[" or not s:
+            continue
+        try:
+            blocks = json.loads(s.lstrip(","))
+        except ValueError:
+            # plain-text status source (i3status "none" format, conky, etc):
+            # i3status only walks two ancestors when auto-detecting i3bar, so
+            # it can't see i3bar through this wrapper. Wrap the line instead.
+            blocks = [{"name": "status", "full_text": s}]
+        mins = [{"name": "psycho_min", "instance": str(cid),
+                 "full_text": f"▫ {title[:22]}", "separator": True}
+                for cid, title in scratch_titles()]
+        print(("" if first else ",") + json.dumps(mins + blocks), flush=True)
+        first = False
+except BrokenPipeError:
+    pass

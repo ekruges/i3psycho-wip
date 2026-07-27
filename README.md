@@ -6,14 +6,24 @@ i3 for psychopaths: floating-first i3, macOS-grade window behavior, the blue tit
 
 The plan is canonical and lives in [i3psycho-plan](https://github.com/ekruges/i3psycho-plan).
 
-## Status: Phase 0 shipped
+## Status: Phase 1 shipped
 
-`dist/psycho.config` runs on a bone-stock i3: float-by-default (`for_window [tiling]`), blue titlebars, keyboard snapping (halves / maximize / center / quarters), scratchpad-as-minimize. `test/phase0.sh` smoke-tests it headless under Xvfb and drops screenshots in /tmp.
+`psychod` (Python, i3ipc, apt-installable deps only) now does the macOS part:
+cascade placement of new windows, exact-workarea snapping (keyboard binds and
+drag-beyond-edge), minimize with geometry restore, show desktop, MRU alt-tab,
+and a minimized-window dock in the bar (`psychod-status` statusline wrapper,
+click a chip to restore). `test/phase1.sh` verifies all of it headless under
+Xvfb; `test/phase0.sh` still covers the config-only layer.
 
-Known limitations, all Phase 1 (psychod) work:
-- Snap geometry is ppt of the full output: snapped windows overlap the bar, and bottom snaps overflow by the titlebar height. psychod will compute exact workarea rects.
-- New windows spawn dead center, exactly stacked. Cascade placement is psychod's job.
-- No drag-to-edge snapping yet (needs psychod watching move events).
+Known behavior:
+- Terminals with size-hint increments (xterm) snap to the nearest character
+  cell, so sub-cell gaps are normal - same as every WM, macOS included.
+- Drop-snap is a 0.3s rect poll: stock i3 emits no `window::move` IPC events
+  for floating repositions (verified empirically). The Phase 2 fork adds real
+  drag events and a live snap preview.
+- Multi-monitor is untested so far (single-screen Xvfb rig).
+
+Phase 2 next: the fork - titlebar buttons, true minimize, drag events.
 
 Layout (will grow per the plan):
 
