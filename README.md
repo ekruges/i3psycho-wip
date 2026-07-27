@@ -6,7 +6,7 @@ i3 for psychopaths: floating-first i3, macOS-grade window behavior, the blue tit
 
 The plan is canonical and lives in [i3psycho-plan](https://github.com/ekruges/i3psycho-plan).
 
-## Status: Phase 2 shipped (the fork exists)
+## Status: Phase 3 shipped (the QoL layer)
 
 `psychod` (Python, i3ipc, apt-installable deps only) now does the macOS part:
 cascade placement of new windows, exact-workarea snapping (keyboard binds and
@@ -15,7 +15,25 @@ and a minimized-window dock in the bar (`psychod-status` statusline wrapper,
 click a chip to restore). `test/phase1.sh` verifies all of it headless under
 Xvfb; `test/phase0.sh` still covers the config-only layer.
 
-Phase 2 adds the C patches (see `patches/`), built and verified on the CT:
+Phase 3, same UI, all behavior (the look is frozen on purpose):
+- **Expose** (`$mod+e`, hot corner top-left): every float arranged in a real
+  window grid; toggle again, click, or alt-tab to restore all rects exactly.
+  No compositor needed, no new UI surfaces.
+- **Drag-to-edge with live preview** (fork patch 0003): solid i3-blue preview
+  under the dragged window for halves / max / quarters, exact snap on drop.
+- **MRU alt-tab cycling** (`$mod+Tab`): repeated presses walk the stack,
+  1.2s pause commits.
+- **Hot corners** (psychod): top-left expose, bottom-right show desktop,
+  `--hot-corners tl=...,br=...` or `none`.
+- **Multi-monitor correct**: cascade and snapping are per-output workarea
+  (fake-outputs tested).
+- **Butter**: release-build i3 (`--buildtype=release`), event-driven +
+  adaptive polling in psychod (0.15s active / 0.6s idle), zero per-frame work
+  at drag edges, and `dist/picom.conf` = an invisible compositor config
+  (vsync only, all eye candy off). Measured action latency in the build CT:
+  mean 1.9 ms, max 3.0 ms tick-to-geometry.
+
+Phase 2 added the C patches (see `patches/`), built and verified on the CT:
 - **Titlebar buttons** on floating windows: x (close), − (iconify to
   scratchpad), + (fullscreen). Minimal glyphs in the titlebar text color,
   macOS placement, themed by existing `client.*` directives. `deco_buttons.c`
@@ -35,7 +53,7 @@ Known behavior:
   On the patched i3, moves emit events; the poller works for both.
 - Multi-monitor is untested so far (single-screen Xvfb rig).
 
-Phase 3 next: live snap preview in the drag loop, true `_NET_WM_STATE_HIDDEN` minimize, picom/skippy-xd dist configs, PKGBUILD for the AUR.
+Next: true `_NET_WM_STATE_HIDDEN` minimize, PKGBUILD for the AUR, upstream the 0001 patch.
 
 Layout (will grow per the plan):
 

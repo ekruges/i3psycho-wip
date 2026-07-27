@@ -7,10 +7,12 @@ drag-beyond-edge snapping, MRU toggle, show-desktop. Pure i3 IPC, no X calls.
 Triggers: `bindsym ... nop psycho:<action>` in the i3 config (binding events)
 or `i3-msg -t send_tick psycho:<action>` from scripts. Actions:
   snap:left|right|max|center|tl|tr|bl|br   minimize (min) / restore[:conid]
-  mru / showdesktop
+  cycle (MRU alt-tab) / showdesktop / expose (real-window grid overview)
 """
 import argparse
 import collections
+import math
+import subprocess
 import threading
 import time
 
@@ -20,17 +22,29 @@ ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument("--cascade-step", type=int, default=30)
 ap.add_argument("--edge-margin", type=int, default=25,
                 help="px beyond the workarea edge that triggers drop-snap")
-ap.add_argument("--drop-debounce", type=float, default=0.4)
+ap.add_argument("--drop-debounce", type=float, default=0.25)
+ap.add_argument("--hot-corners", default="tl=expose,br=showdesktop",
+                help='corner=action pairs ("tl=expose,br=showdesktop"), or "none"')
 ARGS = ap.parse_args()
+
+HOT_CORNERS = {}
+if ARGS.hot_corners != "none":
+    for _pair in ARGS.hot_corners.split(","):
+        _k, _, _v = _pair.partition("=")
+        if _k.strip() in ("tl", "tr", "bl", "br") and _v.strip():
+            HOT_CORNERS[_k.strip()] = _v.strip()
 
 conn = Connection()
 mru = collections.deque(maxlen=64)          # focus history, most recent last
 saved = {}                                  # con_id -> (x, y, w, h) container rect
 min_stack = []                              # LIFO of minimized con_ids
 desktop_stash = collections.defaultdict(list)  # ws name -> [con_ids]
+expose_stash = {}                           # ws name -> {con_id: rect}
+cycle_state = {"order": [], "idx": 0, "t": 0.0}
 cascade_n = collections.defaultdict(int)    # ws name -> spawn counter
 cascaded = set()
 suppress = {}                               # con_id -> ignore moves until (monotonic)
+moving_hint = {}                            # con_id -> last move event (from IPC)
 
 
 def floating_parent(con):
@@ -122,16 +136,64 @@ def do_restore(cid=None):
         place(conn, con, *saved.pop(cid))
 
 
-def do_mru():
+def do_cycle():
+    """MRU alt-tab: repeated presses walk the stack; after 1.2s of quiet the
+    walk commits and the focused window becomes most-recent again."""
+    now = time.monotonic()
     tree = conn.get_tree()
-    seen = set()
-    order = []
-    for cid in reversed(mru):
-        if cid not in seen and tree.find_by_id(cid) is not None:
-            seen.add(cid)
-            order.append(cid)
-    if len(order) >= 2:
-        conn.command(f'[con_id="{order[1]}"] focus')
+    if now - cycle_state["t"] > 1.2 or not cycle_state["order"]:
+        seen, order = set(), []
+        for cid in reversed(mru):
+            if cid not in seen and tree.find_by_id(cid) is not None:
+                seen.add(cid)
+                order.append(cid)
+        if len(order) < 2:
+            return
+        cycle_state["order"] = order
+        cycle_state["idx"] = 0
+    cycle_state["t"] = now
+    cycle_state["idx"] = (cycle_state["idx"] + 1) % len(cycle_state["order"])
+    conn.command(f'[con_id="{cycle_state["order"][cycle_state["idx"]]}"] focus')
+
+
+def expose_restore(tree, ws_name):
+    for cid, rect in expose_stash.pop(ws_name, {}).items():
+        con = tree.find_by_id(cid)
+        if con is not None:
+            place(conn, con, *rect)
+
+
+def do_expose():
+    """Mission Control with real windows: arrange all floats in a grid;
+    focusing any window (click, cycle) or toggling again restores them all.
+    No compositor, no new UI surfaces, just the windows themselves."""
+    tree = conn.get_tree()
+    f = tree.find_focused()
+    ws = f.workspace() if f else None
+    if ws is None or ws.name.startswith("__"):
+        return
+    if ws.name in expose_stash:
+        expose_restore(tree, ws.name)
+        return
+    floats = [(next(iter(fc.leaves()), None), fc) for fc in ws.floating_nodes]
+    floats = [(leaf, fc) for leaf, fc in floats if leaf is not None]
+    if len(floats) < 2:
+        return
+    cols = math.ceil(math.sqrt(len(floats)))
+    rows = math.ceil(len(floats) / cols)
+    gap = 24
+    wa = ws.rect
+    cell_w = (wa.width - gap * (cols + 1)) // cols
+    cell_h = (wa.height - gap * (rows + 1)) // rows
+    stash = {}
+    for i, (leaf, fc) in enumerate(floats):
+        stash[leaf.id] = (fc.rect.x, fc.rect.y, fc.rect.width, fc.rect.height)
+        row, col = divmod(i, cols)
+        place(conn, leaf,
+              wa.x + gap + col * (cell_w + gap),
+              wa.y + gap + row * (cell_h + gap),
+              cell_w, cell_h)
+    expose_stash[ws.name] = stash
 
 
 def do_showdesktop():
@@ -162,10 +224,12 @@ def dispatch(payload):
         do_minimize()
     elif action == "restore":
         do_restore(parts[2] if len(parts) > 2 else None)
-    elif action == "mru":
-        do_mru()
+    elif action in ("cycle", "mru"):
+        do_cycle()
     elif action == "showdesktop":
         do_showdesktop()
+    elif action == "expose":
+        do_expose()
 
 
 def cascade(con):
@@ -207,6 +271,14 @@ def on_floating(_, e):
 
 def on_focus(_, e):
     mru.append(e.container.id)
+    # focusing a window while its workspace is in expose mode exits expose,
+    # restoring every window (macOS click-to-select behavior)
+    if expose_stash:
+        tree = conn.get_tree()
+        con = tree.find_by_id(e.container.id)
+        ws = con.workspace() if con else None
+        if ws is not None and ws.name in expose_stash:
+            expose_restore(tree, ws.name)
 
 
 def on_close(_, e):
@@ -217,6 +289,13 @@ def on_close(_, e):
     for ws in tree.workspaces():
         if ws.name in cascade_n and not ws.floating_nodes:
             cascade_n[ws.name] = 0
+
+
+def on_move(_, e):
+    # patched i3 emits these for floating repositions; stock i3 does not.
+    # Either way the poller below verifies geometry, this just wakes it fast.
+    if suppress.get(e.container.id, 0) <= time.monotonic():
+        moving_hint[e.container.id] = time.monotonic()
 
 
 def on_binding(_, e):
@@ -239,13 +318,22 @@ def drop_worker():
     wconn = Connection()
     prev = {}      # leaf id -> outer rect tuple
     moving = {}    # leaf id -> last time the rect changed
+    hot = {"corner": None, "since": 0.0, "armed": True}
+    interval = 0.6
     while True:
-        time.sleep(0.3)
+        time.sleep(interval)
         try:
             tree = wconn.get_tree()
         except Exception:
             continue                      # i3 restarting
         now = time.monotonic()
+        if HOT_CORNERS:
+            poll_hot_corner(wconn, hot, tree.rect, now)
+        # butter: poll fast only while something is (or just was) moving
+        active = bool(moving) or any(now - t < 1.0 for t in moving_hint.values())
+        interval = 0.15 if active else 0.6
+        if len(moving_hint) > 64:
+            moving_hint.clear()
         seen = set()
         for ws in tree.workspaces():
             if ws.name.startswith("__"):
@@ -279,6 +367,32 @@ def drop_worker():
             moving.pop(cid, None)
 
 
+def poll_hot_corner(wconn, st, root_rect, now):
+    # ponytail: xdotool subprocess per poll; swap for python-xlib if it matters
+    try:
+        out = subprocess.run(["xdotool", "getmouselocation", "--shell"],
+                             capture_output=True, text=True, timeout=1).stdout
+        pos = dict(ln.split("=", 1) for ln in out.strip().splitlines() if "=" in ln)
+        x, y = int(pos["X"]), int(pos["Y"])
+    except Exception:
+        return
+    m = 1
+    at_l, at_t = x <= m, y <= m
+    at_r = x >= root_rect.width - 1 - m
+    at_b = y >= root_rect.height - 1 - m
+    corner = ("tl" if at_l and at_t else "tr" if at_r and at_t else
+              "bl" if at_l and at_b else "br" if at_r and at_b else None)
+    if corner is None:
+        st.update(corner=None, since=0.0, armed=True)
+        return
+    if corner != st["corner"]:
+        st.update(corner=corner, since=now)
+        return
+    if st["armed"] and now - st["since"] >= 0.5 and corner in HOT_CORNERS:
+        st["armed"] = False          # re-arms when the pointer leaves
+        wconn.send_tick(f"psycho:{HOT_CORNERS[corner]}")
+
+
 def evaluate_drop(wconn, fc, leaf, wa):
     m = ARGS.edge_margin
     left = fc.rect.x < wa.x - m
@@ -310,6 +424,7 @@ def main():
     conn.on(Event.WINDOW_FLOATING, on_floating)
     conn.on(Event.WINDOW_FOCUS, on_focus)
     conn.on(Event.WINDOW_CLOSE, on_close)
+    conn.on(Event.WINDOW_MOVE, on_move)
     conn.on(Event.BINDING, on_binding)
     conn.on(Event.TICK, on_tick)
     conn.main()

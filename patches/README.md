@@ -9,11 +9,15 @@ same series as commits). Regenerate with `git format-patch` after a rebase.
   glyphs in the titlebar text color, macOS placement) + double-click-titlebar
   fullscreen. New `src/deco_buttons.c` module, wired into `x_draw_decoration()`
   and `route_click()`.
+- `0003` — floating: live edge-snap preview in the drag loop (solid rect in
+  the focused titlebar color, stacked under the dragged window) and exact
+  snap-on-drop for halves / maximize / quarters. Zero per-motion work when
+  the edge region is unchanged.
 
 Build:
 
 ```
 git clone https://github.com/i3/i3 && cd i3
 git am ../patches/00*.patch
-meson setup build && ninja -C build
+meson setup --buildtype=release build && ninja -C build
 ```

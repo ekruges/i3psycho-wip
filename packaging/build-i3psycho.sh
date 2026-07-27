@@ -9,6 +9,6 @@ git checkout -q master
 git am --abort 2>/dev/null || true
 git apply --check ../patches/00*.patch
 git am ../patches/00*.patch
-meson setup build >/dev/null
+meson setup --buildtype=release build >/dev/null
 ninja -C build
 echo "OK: i3-build/build/i3"
